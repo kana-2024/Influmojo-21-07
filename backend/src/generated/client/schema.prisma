@@ -45,6 +45,7 @@ model User {
   reviews_reviewed          Review[]               @relation("ReviewReviewed")
   reviews_reviewer          Review[]               @relation("ReviewReviewer")
   kyc_verifications         KYC[]                  @relation("KYCVerifier")
+  refreshTokens             RefreshToken[]
 }
 
 model BrandProfile {
@@ -442,6 +443,18 @@ model PortfolioItem {
 
   @@index([creator_id])
   @@index([media_type])
+}
+
+model RefreshToken {
+  id        BigInt   @id @default(autoincrement())
+  token     String   @unique
+  userId    BigInt
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  @@index([userId])
 }
 
 enum UserType {

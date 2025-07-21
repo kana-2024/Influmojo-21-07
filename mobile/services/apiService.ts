@@ -1,5 +1,12 @@
 import { API_ENDPOINTS } from '../config/env';
-import { getToken as getStoredToken, setToken as setStoredToken, clearToken as clearStoredToken } from './storage';
+import {
+  getToken as getStoredToken,
+  setToken as setStoredToken,
+  clearToken as clearStoredToken,
+  getRefreshToken,
+  setRefreshToken,
+  clearRefreshToken
+} from './storage';
 
 // Get stored token
 const getToken = async (): Promise<string | null> => {
@@ -11,15 +18,43 @@ const setToken = async (token: string): Promise<void> => {
   await setStoredToken(token);
 };
 
-// API request helper
-const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
-  const token = await getToken();
-  
+// Set refresh token
+const setRefresh = async (token: string): Promise<void> => {
+  await setRefreshToken(token);
+};
+
+// Clear both tokens
+const clearTokens = async (): Promise<void> => {
+  await clearStoredToken();
+  await clearRefreshToken();
+};
+
+// Refresh access token using refresh token
+const refreshAccessToken = async () => {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) throw new Error('No refresh token available');
+  const response = await fetch(API_ENDPOINTS.REFRESH_TOKEN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken })
+  });
+  if (!response.ok) throw new Error('Failed to refresh token');
+  const data = await response.json();
+  if (data.token && data.refreshToken) {
+    await setToken(data.token);
+    await setRefresh(data.refreshToken);
+    return data.token;
+  }
+  throw new Error('Invalid refresh response');
+};
+
+// API request helper with refresh logic
+const apiRequest = async (endpoint: string, options: RequestInit = {}, retry = true) => {
+  let token = await getToken();
   const defaultHeaders = {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
   };
-
   const config: RequestInit = {
     ...options,
     headers: {
@@ -27,15 +62,32 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
       ...options.headers,
     },
   };
-
   try {
     const response = await fetch(endpoint, config);
+    if (response.status === 401 && retry) {
+      // Try to refresh token and retry request
+      try {
+        const newToken = await refreshAccessToken();
+        const retryConfig = {
+          ...config,
+          headers: {
+            ...config.headers,
+            Authorization: `Bearer ${newToken}`
+          }
+        };
+        const retryResponse = await fetch(endpoint, retryConfig);
+        const retryData = await retryResponse.json();
+        if (!retryResponse.ok) throw new Error(retryData.error || 'API request failed');
+        return retryData;
+      } catch (refreshError) {
+        await clearTokens();
+        throw new Error('Session expired. Please log in again.');
+      }
+    }
     const data = await response.json();
-
     if (!response.ok) {
       throw new Error(data.error || 'API request failed');
     }
-
     return data;
   } catch (error) {
     console.error('API request error:', error);
@@ -51,11 +103,12 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ idToken, isSignup, userType }),
     });
-    
     if (response.token) {
       await setToken(response.token);
     }
-    
+    if (response.refreshToken) {
+      await setRefresh(response.refreshToken);
+    }
     return response;
   },
 
@@ -73,12 +126,30 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ phone, code, fullName, userType }),
     });
-    
     if (response.token) {
       await setToken(response.token);
     }
-    
+    if (response.refreshToken) {
+      await setRefresh(response.refreshToken);
+    }
     return response;
+  },
+
+  // Logout
+  logout: async () => {
+    const refreshToken = await getRefreshToken();
+    if (refreshToken) {
+      try {
+        await fetch(API_ENDPOINTS.LOGOUT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
+      } catch (e) {
+        // Ignore network errors on logout
+      }
+    }
+    await clearTokens();
   },
 
   // Update user name

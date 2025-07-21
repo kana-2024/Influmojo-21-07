@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "prebuild": "expo prebuild --clean",
     "dev-client": "expo start --dev-client",
-    "build:android": "eas build --platform android --profile development",
+    "build:android": "node scripts/build-android.js",
     "build:ios": "eas build --platform ios --profile development",
     "build:dev": "eas build --profile development",
     "setup:env": "cp .env.example .env || echo 'Please create .env file manually'",
@@ -17,22 +17,48 @@
     "optimize:check": "node scripts/optimize-build.js",
     "build:clean": "expo build:clean && npm run optimize:check",
     "troubleshoot": "node scripts/build-troubleshoot.js",
-    "build:android": "node scripts/build-android.js"
+    "test": "jest",
+    "test:watch": "jest --watchAll",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+  },
+  "jest": {
+    "preset": "react-native",
+    "transform": {
+      "^.+\\.(js|ts|tsx)$": "babel-jest"
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/dist/",
+      "/build/"
+    ],
+    "setupFilesAfterEnv": [
+      "@testing-library/jest-native/extend-expect"
+    ],
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "jsx",
+      "json",
+      "node"
+    ]
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
-    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-native-community/datetimepicker": "8.4.1",
     "@react-native-google-signin/google-signin": "^11.0.0",
     "@react-navigation/native": "^7.1.6",
     "@react-navigation/native-stack": "^7.1.6",
     "@reduxjs/toolkit": "^2.5.0",
+    "@sentry/react-native": "^6.18.0",
     "expo": "53.0.20",
     "expo-constants": "~17.1.7",
     "expo-dev-client": "~5.2.4",
     "expo-document-picker": "~13.1.6",
     "expo-linking": "~7.1.7",
     "expo-navigation-bar": "~4.2.7",
+    "expo-secure-store": "^14.2.3",
     "expo-splash-screen": "~0.30.10",
     "expo-status-bar": "~2.2.3",
     "expo-web-browser": "~14.2.0",

@@ -464,6 +464,15 @@ exports.Prisma.PortfolioItemScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
+exports.Prisma.RefreshTokenScalarFieldEnum = {
+  id: 'id',
+  token: 'token',
+  userId: 'userId',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  revoked: 'revoked'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -660,7 +669,8 @@ exports.Prisma.ModelName = {
   Package: 'Package',
   PhoneVerification: 'PhoneVerification',
   KYC: 'KYC',
-  PortfolioItem: 'PortfolioItem'
+  PortfolioItem: 'PortfolioItem',
+  RefreshToken: 'RefreshToken'
 };
 
 /**

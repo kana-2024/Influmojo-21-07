@@ -26,7 +26,8 @@ export const API_ENDPOINTS = {
   UPDATE_NAME: `${ENV.API_BASE_URL}/api/auth/update-name`,
   USER_PROFILE: `${ENV.API_BASE_URL}/api/auth/profile`,
   CHECK_USER_EXISTS: `${ENV.API_BASE_URL}/api/auth/check-user-exists`,
-  
+  REFRESH_TOKEN: `${ENV.API_BASE_URL}/api/auth/refresh-token`,
+  LOGOUT: `${ENV.API_BASE_URL}/api/auth/logout`,
   // Profile endpoints
   UPDATE_BASIC_INFO: `${ENV.API_BASE_URL}/api/profile/update-basic-info`,
   UPDATE_PREFERENCES: `${ENV.API_BASE_URL}/api/profile/update-preferences`,

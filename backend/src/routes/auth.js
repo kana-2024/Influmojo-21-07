@@ -4,6 +4,8 @@ const { OAuth2Client } = require('google-auth-library');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('../generated/client');
+const crypto = require('crypto');
+const REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -23,13 +25,59 @@ const validateRequest = (req, res, next) => {
   next();
 };
 
-// Generate JWT token
+// Generate JWT access token
 const generateToken = (userId) => {
   return jwt.sign(
     { userId: userId.toString(), iat: Date.now() },
     process.env.JWT_SECRET || 'your-secret-key',
-    { expiresIn: '7d' }
+    { expiresIn: '1h' }
   );
+};
+
+// Generate a secure random refresh token
+const generateRefreshToken = () => crypto.randomBytes(64).toString('hex');
+
+// Store refresh token in DB
+async function storeRefreshToken(userId, token) {
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  return await prisma.refreshToken.create({
+    data: {
+      token,
+      userId: BigInt(userId),
+      expiresAt,
+    },
+  });
+}
+
+// Validate refresh token
+async function validateRefreshToken(token) {
+  const record = await prisma.refreshToken.findUnique({ where: { token } });
+  if (!record || record.revoked || record.expiresAt < new Date()) return null;
+  return record;
+}
+
+// Revoke refresh token
+async function revokeRefreshToken(token) {
+  await prisma.refreshToken.update({ where: { token }, data: { revoked: true } });
+}
+
+// HTTP Basic Auth middleware
+const basicAuth = (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="User Management"');
+    return res.status(401).send('Authentication required.');
+  }
+  const base64 = auth.split(' ')[1];
+  const [user, pass] = Buffer.from(base64, 'base64').toString().split(':');
+  if (
+    user === process.env.DASHBOARD_ADMIN_USER &&
+    pass === process.env.DASHBOARD_ADMIN_PASS
+  ) {
+    return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="User Management"');
+  return res.status(401).send('Invalid credentials.');
 };
 
 // Google OAuth for mobile
@@ -149,6 +197,8 @@ router.post('/google-mobile', [
 
     // Generate JWT token
     const token = generateToken(user.id);
+    const refreshToken = generateRefreshToken();
+    await storeRefreshToken(user.id, refreshToken);
 
     res.json({
       success: true,
@@ -163,7 +213,8 @@ router.post('/google-mobile', [
         isVerified: user.email_verified,
         user_type: user.user_type
       },
-      token
+      token,
+      refreshToken
     });
 
   } catch (error) {
@@ -361,6 +412,8 @@ router.post('/verify-phone-code', [
 
     // Generate JWT token
     const token = generateToken(user.id);
+    const refreshToken = generateRefreshToken();
+    await storeRefreshToken(user.id, refreshToken);
 
     res.json({
       success: true,
@@ -371,7 +424,8 @@ router.post('/verify-phone-code', [
         name: user.name,
         isVerified: user.phone_verified
       },
-      token
+      token,
+      refreshToken
     });
 
   } catch (error) {
@@ -462,7 +516,7 @@ router.get('/profile', async (req, res) => {
 });
 
 // Get all users (admin/developer endpoint)
-router.get('/users', async (req, res) => {
+router.get('/users', basicAuth, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -503,7 +557,7 @@ router.get('/users', async (req, res) => {
 });
 
 // Delete user (admin/developer endpoint)
-router.delete('/delete-user', [
+router.delete('/delete-user', basicAuth, [
   body('userId').notEmpty().withMessage('User ID is required')
 ], validateRequest, async (req, res) => {
   try {
@@ -700,7 +754,7 @@ router.delete('/delete-user', [
 });
 
 // Delete user by phone number (admin/developer endpoint)
-router.delete('/delete-user-by-phone', [
+router.delete('/delete-user-by-phone', basicAuth, [
   body('phone').notEmpty().withMessage('Phone number is required')
 ], validateRequest, async (req, res) => {
   try {
@@ -784,6 +838,37 @@ router.post('/check-user-exists', [
       error: 'Failed to check user existence',
       message: error.message 
     });
+  }
+});
+
+// Refresh token endpoint
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ error: 'Refresh token required' });
+    const record = await validateRefreshToken(refreshToken);
+    if (!record) return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    // Issue new access token
+    const token = generateToken(record.userId);
+    // Optionally, rotate refresh token
+    await revokeRefreshToken(refreshToken);
+    const newRefreshToken = generateRefreshToken();
+    await storeRefreshToken(record.userId, newRefreshToken);
+    res.json({ token, refreshToken: newRefreshToken });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({ error: 'Failed to refresh token', message: error.message });
+  }
+});
+
+// Logout endpoint (optional): revoke refresh token
+router.post('/logout', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (refreshToken) await revokeRefreshToken(refreshToken);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Logout failed', message: error.message });
   }
 });
 
