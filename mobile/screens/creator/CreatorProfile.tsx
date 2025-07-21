@@ -12,6 +12,7 @@ import AnimatedModalOverlay from '../../components/AnimatedModalOverlay';
 import CustomDropdown from '../../components/CustomDropdown';
 import { profileAPI } from '../../services/apiService';
 import { setShowCreatePortfolio, setShowKycModal, resetModals } from '../../store/slices/modalSlice';
+import AccountModal from '../../components/modals/AccountModal';
 
 const categories = ['Technology', 'Science', 'Training'];
 const languages = ['English', 'Hindi', 'Telugu', 'Marathi'];
@@ -50,6 +51,7 @@ const CreatorProfile = () => {
   const scrollViewRef = useRef(null);
   const [creatorProfile, setCreatorProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   // Open modals only if navigation param is set
   useEffect(() => {
@@ -133,8 +135,14 @@ const CreatorProfile = () => {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       <StatusBar barStyle='dark-content' backgroundColor='#fff' />
       {/* Header */}
-      <View style={{ alignItems: 'center', backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: insets.top + 16, paddingBottom: 12 }}>
-        <Text style={{ fontSize: 22, fontWeight: '700', color: '#1A1D1F', textAlign: 'center' }}>My Profile</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: insets.top + 16, paddingBottom: 12, paddingHorizontal: 16 }}>
+        <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row' }}>
+          {/* Optionally add a back button here if needed */}
+        </View>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: '#1A1D1F', textAlign: 'center', flex: 2 }}>My Profile</Text>
+        <TouchableOpacity style={{ flex: 1, alignItems: 'flex-end' }} onPress={() => setShowAccountModal(true)}>
+          <Ionicons name="ellipsis-vertical" size={24} color="#1A1D1F" />
+        </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Profile Card */}
@@ -265,6 +273,16 @@ const CreatorProfile = () => {
           )}
         </View>
       </ScrollView>
+      {/* Account Modal Overlay (use new component) */}
+      <AccountModal
+        visible={showAccountModal}
+        onClose={() => setShowAccountModal(false)}
+        user={{
+          name: creatorProfile?.user?.name,
+          email: creatorProfile?.user?.email,
+          profile_image_url: creatorProfile?.user?.profile_image_url,
+        }}
+      />
       {/* Modals and BottomNavBar remain unchanged */}
       <AnimatedModalOverlay visible={showCreatePortfolio}>
         <CreatePortfolioScreen onClose={closeCreatePortfolio} onBack={closeCreatePortfolio} />
